@@ -1,0 +1,743 @@
+;Avtor: Chris Godnič
+;23.5.2020
+;Sistemi I
+;igro igramo s tipkovnico, s številkami od 1 do 9. 
+;število 1 je spodnji levi kvadrat, 9 pa zgornji desni.
+
+JMP main:    
+isr:
+PUSH A ; Shrani register ki ga isr rabi
+IN 6 ; Preberi katero tipko si pritisnil
+JMP vnos_polja: ; začni preverjanje kam boš zapisal znak
+isr2:
+MOV A, 1 ; nastavi A na 1 da počistiš prekinitev
+OUT 2 ; Počisti prekinitev
+POP A ; Registre nastavi na prvotno vrednost
+IRET ; vrni se nazaj iz prekinitve
+
+counter: 
+	DW 1; to bomo rabili za gledanje kdo je na vrsti
+
+countzmaga:
+ 	DW 0; to bomo rabili da ne bo mogoče pisati v polje ko eden zmaga
+
+;counterji za števila, če counter ni 0 se ne izvede
+st1: DW 0;
+st2: DW 0;
+st3: DW 0;
+st4: DW 0;
+st5: DW 0;
+st6: DW 0;
+st7: DW 0;	
+st8: DW 0;
+st9: DW 0;
+
+;s temi števili bomo preverjali kje je zapisan x oziroma o
+t1: DW 0;
+t2: DW 0;
+t3: DW 0;
+t4: DW 0;
+t5: DW 0;
+t6: DW 0;
+t7: DW 0;	
+t8: DW 0;
+t9: DW 0;
+
+;zmagovalni napis
+display: DW 0x0EE0; kam se bo kopiral
+strx: DB "X je zmagal!";
+	  DB 0;
+stro: DB "O je zmagal!";
+	  DB 0;
+stri: DB "Izenaceno!";
+	  DB 0;
+
+main:
+MOV SP, 0x0edf 
+CALL resetgame
+CALL besedilo
+HLT
+
+
+
+
+
+besedilo:
+MOV A, 1 ; nastavi A na 1 da lahko začneš s prekinitvami
+OUT 0 ; Omogoči prekinitve tipkovnice
+STI ; Omogoči prekinitve globalno (M = 1).
+HLT ; Čakaj na nov vnos na tipkovnici
+
+;----------------------------------------------------------------
+;NASTAVI BELO ODZADJE
+
+resetgame:
+    MOVB AL, 0xff           ; nastavi barvo na belo
+    MOV D, 0x0F00           ; pozicija začetka barvanja 
+resetpixel:
+    MOVB [D], AL            ; zamenjaj barvo/očisti pixel
+    INC D                   ; naslednji pixel
+    CMP D, 0x01000          ; če ni enako prišlo do konca ponovno izvedi barvanje
+    JNE resetpixel
+
+;NARIŠE VODORAVNE ČRTE 
+vodoravne_crte:
+	MOVB AL,0x99			; nastavi barvo na črno
+    MOV D, 0x0F40			; pozicija začetka barvanja 
+    MOV B,0					; nastavi števec na 0 
+
+resetpixelvodoravno:
+    MOVB [D], AL            ; zamenjaj barvo/očisti pixel
+    INC D					; naslednji pixel
+    INC B					;povečaj števec
+    CMP B,32				;če se je izvedlo 32 krat pomeni da smo prišli do konca druge vrstice
+    JNE resetpixelvodoravno
+    
+vodoravne_crte2:
+	CMP D, 0x0FC0			; poglej če si  že končal barvanje (če si že enkrat izvedel funkcijo se ne izvaja več)
+    JE navpicne_crte		;če si že narisal vodoravne črte pojdi risat navpične
+    MOV D, 0x0FA0			; pozicija začetka barvanja 
+    MOV B,0					; nastavi števec na 0 
+	JMP resetpixelvodoravno;
+    
+;NARIŠE NAVPIČNE ČRTE
+
+navpicne_crte:
+    MOV D, 0x0F04			; pozicija začetka barvanja 
+    MOV B,0					; nastavi števec na 0 
+
+resetpixelnavpicno:
+    MOVB [D], AL            ; zamenjaj barvo/očisti pixel
+    INC D					; naslednji pixel
+    MOVB [D], AL 			; zamenjaj barvo/očisti pixel
+    ADD D,15				; pixle povečaj za 15 tako da barvaš v nasledji vrsici
+    INC B					;povečaj števec
+    CMP B,16				;če se je izvedlo 16 krat pomeni da si pobarval do konca obe črti
+    JNE resetpixelnavpicno
+    
+navpicne_crte2:
+	CMP D, 0x100A			; poglej če si  že končal barvanje
+    JE konec_risanja
+    MOV D, 0x0F0A			; pozicija začetka barvanja
+    MOV B,0					; nastavi števec na 0 
+	JMP resetpixelnavpicno;
+    
+    konec_risanja:
+	RET
+;-------------------------------------------------------------
+
+;---------------------------------------------------------
+
+vnos_polja:
+	SUBB AL, 48	;od vnosa (Po ascii tabeli se 1 zapiše kot 49 zato odštejemo 48 tako da primerjamo od 1 do 9
+	CMPB AL, 0			;poglej če je enako 0
+    JE reset				;če je resetiraj igro
+	MOV C, [countzmaga]		;poglej če je kdo že zmagal
+    CMP C, 1				
+    JE isr2					;če je ne vpisuj več v polje (omogočena le 0 za reset)
+    CMPB AL, 1			;poglej če je vnos enak 1 
+    JE preglej_polje1	;skoči na preverjanje če je polje že popisano
+    CMPB AL, 2
+    JE preglej_polje2
+    CMPB AL, 3
+    JE preglej_polje3
+    CMPB AL, 4
+    JE preglej_polje4
+    CMPB AL, 5
+    JE preglej_polje5
+    CMPB AL, 6
+    JE preglej_polje6
+    CMPB AL, 7
+    JE preglej_polje7
+    CMPB AL, 8
+    JE preglej_polje8
+    CMPB AL, 9
+    JE preglej_polje9
+    JMP isr2			;če je bila kliknjena bilokatera tipka ki ni število med 1-9
+
+
+
+preglej_polje1:	;(naslednih 9 vrstic veljaja za vse glej_polje_, le številke so drugačne)
+	MOV B, [st1]			;zaščita, da se ne more dvakrat kliknit isto polje
+    CMP B, 0				;primirjamo z 0, če je enak nadaljuje
+    JNE isr2				;če ni pa se vrne nazaj ter se pripravi za ponovni vnos
+    INC B					;povečaj števec da za to število ne omogoča več risanja v polje
+    MOV [st1], B			;novo število napišemo na st1
+    MOV D, 0x0FC0			;premakni začetno polje risanja znaka (X ali O) v  D 
+    JMP kdo_je_na_vrsti		;funkcija izbiranja znaka
+    
+preglej_polje2:
+	MOV B, [st2]			
+    CMP B, 0				
+    JNE isr2				
+    INC B					
+    MOV [st2], B	
+    MOV D, 0x0FC6
+    JMP kdo_je_na_vrsti
+    
+preglej_polje3:
+	MOV B, [st3]			
+    CMP B, 0				
+    JNE isr2				
+    INC B					
+    MOV [st3], B	
+    MOV D, 0x0FCC
+    JMP kdo_je_na_vrsti
+	
+preglej_polje4:
+	MOV B, [st4]			
+    CMP B, 0				
+    JNE isr2
+    INC B					
+    MOV [st4], B	
+    MOV D, 0x0F60
+    JMP kdo_je_na_vrsti
+
+preglej_polje5:
+	MOV B, [st5]			
+    CMP B, 0				
+    JNE isr2				
+    INC B					
+    MOV [st5], B	
+    MOV D, 0x0F66
+    JMP kdo_je_na_vrsti
+
+preglej_polje6:
+	MOV B, [st6]			
+    CMP B, 0				
+    JNE isr2				
+    INC B					
+    MOV [st6], B	
+    MOV D, 0x0F6C
+    JMP kdo_je_na_vrsti
+
+preglej_polje7:
+	MOV B, [st7]			
+    CMP B, 0				
+    JNE isr2				
+    INC B					
+    MOV [st7], B	
+    MOV D, 0x0F00
+    JMP kdo_je_na_vrsti
+
+preglej_polje8:
+	MOV B, [st8]			
+    CMP B, 0				
+    JNE isr2				
+    INC B					
+    MOV [st8], B	
+    MOV D, 0x0F06
+    JMP kdo_je_na_vrsti
+    
+preglej_polje9:
+	MOV B, [st9]			
+    CMP B, 0				
+    JNE isr2				
+    INC B					
+    MOV [st9], B	
+    MOV D, 0x0F0C
+    JMP kdo_je_na_vrsti
+;--------------------------------------------------------- 
+kdo_je_na_vrsti: ;izvemo ali je to krog al x
+	MOV C, [counter]	; če je counter 2 bo na vrsti krog če 1 x
+    CMP C, 1			; primerjamo z 1
+    JNE krog			; če je 2 gremo na pot risanja kroga
+    INC C				; povečamo C 
+    MOV [counter], C	; in ga zapišemo na mesto counterja, da bo v naslednjem krogu krožec na vrsti
+    JMP nastavi_x		; gremo na funkcijo risanja x
+    
+krog:
+	DEC C				;zmanjšamo C na 1 tako da bo naslednji krog igral x
+    MOV [counter], C	;zapišemo na mesto [counter]
+    JMP nastavi_krog	;gremo na funkcijo risanja kroga
+
+
+;--------------------------------------------------------- 
+;NASTAVI IN NARIŠE X
+
+nastavi_x:
+	MOVB BL, 0xf0			; barva križca
+
+narisi_x:					;barvanje pixlov
+	MOVB [D], BL			;prva vrstica
+    ADD D, 3
+    MOVB [D], BL
+    ADD D, 14
+    MOVB [D], BL			;druga vrstica
+    INC D
+    MOVB [D], BL
+    ADD D, 15
+    MOVB [D], BL			;tretja vrstica
+    INC D
+    MOVB [D], BL
+    ADD D, 14
+    MOVB [D], BL			;četrta vrstica
+    ADD D, 3
+    MOVB [D], BL
+    JMP preveri_zmagovalca_x
+
+;-------------------------------------------------------------
+;NASTAVI IN NARIŠE KROG
+
+nastavi_krog:
+	MOVB BL, 0xe0			; nastavi barvo kroga
+
+narisi_krog:				;barvanje pixlov
+	INC D					;prva vrstica
+	MOVB [D], BL
+    INC D
+    MOVB [D], BL
+    ADD D, 14
+    MOVB [D], BL			;druga vrstica
+    ADD D, 3
+    MOVB [D], BL
+    ADD D, 13
+    MOVB [D], BL			;tretja vrstica
+    ADD D, 3
+    MOVB [D], BL
+    ADD D, 14				;četrta vrstica
+    MOVB [D], BL
+    INC D
+    MOVB [D], BL  
+    JMP preveri_zmagovalca_o
+;-------------------------------------------------------------
+preveri_zmagovalca_x:
+    CMPB AL, 1			;poglej če je vnos enak 1 
+    JE nahajanje_x1	;skoči na preverjanje če je polje že popisano
+    CMPB AL, 2
+    JE nahajanje_x2
+    CMPB AL, 3
+    JE nahajanje_x3
+    CMPB AL, 4
+    JE nahajanje_x4
+    CMPB AL, 5
+    JE nahajanje_x5
+    CMPB AL, 6
+    JE nahajanje_x6
+    CMPB AL, 7
+    JE nahajanje_x7
+    CMPB AL, 8
+    JE nahajanje_x8
+    CMPB AL, 9
+    JE nahajanje_x9
+
+nahajanje_x1:
+	MOV [t1],1	;na mesto t1 zapišemo 1 tako bomo vedeli da se na 1 celici nahaja x
+	MOV D, [t1]
+    JMP kombinacije_x; pogledali bomo ali je kakšna zmagovalna kombinacija že vpisana
+    
+nahajanje_x2:
+	MOV [t2],1
+    MOV D, [t2]
+    JMP kombinacije_x
+    
+nahajanje_x3:
+	MOV [t3],1  
+    MOV D, [t3]
+    JMP kombinacije_x
+	
+nahajanje_x4:
+	MOV [t4],1
+    MOV D, [t4]
+    JMP kombinacije_x
+    
+nahajanje_x5:
+	MOV [t5],1   
+    MOV D, [t5]
+    JMP kombinacije_x
+    
+nahajanje_x6:
+	MOV [t6],1   
+    MOV D, [t6]
+    JMP kombinacije_x
+    
+nahajanje_x7:
+	MOV [t7],1
+    MOV D, [t7]
+    JMP kombinacije_x
+    
+nahajanje_x8:
+	MOV [t8],1    
+    MOV D, [t8]
+    JMP kombinacije_x
+
+nahajanje_x9:
+	MOV [t9],1
+    MOV D, [t9]
+    JMP kombinacije_x
+
+;-------------------------------------------------------------
+
+preveri_zmagovalca_o:
+    CMPB AL, 1			;poglej če je vnos enak 1 
+    JE nahajanje_o1	;skoči na preverjanje če je polje že popisano
+    CMPB AL, 2
+    JE nahajanje_o2
+    CMPB AL, 3
+    JE nahajanje_o3
+    CMPB AL, 4
+    JE nahajanje_o4
+    CMPB AL, 5
+    JE nahajanje_o5
+    CMPB AL, 6
+    JE nahajanje_o6
+    CMPB AL, 7
+    JE nahajanje_o7
+    CMPB AL, 8
+    JE nahajanje_o8
+    CMPB AL, 9
+    JE nahajanje_o9
+    
+nahajanje_o1:
+	MOV [t1],2	;na mesto t1 zapišemo 1 tako bomo vedeli da se na 1 celici nahaja x
+	MOV D, [t1]
+    JMP kombinacije_o
+    
+nahajanje_o2:
+	MOV [t2],2
+    MOV D, [t2]
+    JMP kombinacije_o
+    
+nahajanje_o3:
+	MOV [t3],2 
+    MOV D, [t3]
+    JMP kombinacije_o
+	
+nahajanje_o4:
+	MOV [t4],2
+    MOV D, [t4]
+    JMP kombinacije_o
+    
+nahajanje_o5:
+	MOV [t5],2    
+    MOV D, [t5]
+    JMP kombinacije_o
+    
+nahajanje_o6:
+	MOV [t6],2  
+    MOV D, [t6]
+    JMP kombinacije_o
+    
+nahajanje_o7:
+	MOV [t7],2    
+    MOV D, [t7]
+    JMP kombinacije_o
+    
+nahajanje_o8:
+	MOV [t8],2    
+    MOV D, [t8]
+    JMP kombinacije_o
+
+nahajanje_o9:
+	MOV [t9],2
+    MOV D, [t9]
+    JMP kombinacije_o
+    
+;------------------------------------------------------------
+kombinacije_x:
+	MOV B, [t1] 	;preveri kvadrat 1
+    CMP B, 1		;poglej če je zapisan x notr
+    JNE p2			;če ni enako poglej kvadrat 9
+    
+    MOV B, [t2]	;poglej če je zapisan x na kvadratu 2 
+    CMP B, 1		;
+    JNE p12			;če ni poglej kvadrat 4
+    
+    MOV B, [t3]	;poglej če je zapisan x na kvadratu 3 
+   	CMP B, 1		;
+    JE Win_x		;če je tudi kvadrat 3 enak x potem je x zmagal
+
+p12:
+	MOV B, [t4]	;poglej če je zapisan x na kvadratu 4
+    CMP B, 1
+    JNE p2			;če ni poglej kvadrat 9
+    
+    MOV B, [t7]	;poglej če je zapisan x na kvadratu 7
+    CMP B, 1
+    JE Win_x		;če je tudi kvadrat 7 enak x potem je x zmagal
+  
+p2:
+	MOV B, [t9] ;preveri kvadrat 9
+    CMP B, 1		;poglej če je zapisan x notr
+    JNE p3			;če ni enako poglej kvadrat 5
+    
+    MOV B, [t6]	;poglej če je zapisan x na kvadratu 6 
+    CMP B, 1		;
+    JNE p22			;če ni poglej kvadrat 8
+    
+    MOV B, [t3]	;poglej če je zapisan x na kvadratu 3 
+   	CMP B, 1		;
+    JE Win_x		;če je tudi kvadrat 3 enak x potem je x zmagal
+
+p22:
+	MOV B, [t8]	;poglej če je zapisan x na kvadratu 8
+    CMP B, 1
+    JNE p3			;če ni poglej kvadrat 5
+    
+    MOV B, [t7]	;poglej če je zapisan x na kvadratu 7
+    MOV D, [t7]
+    CMP B, 1
+    JE Win_x		;če je tudi kvadrat 7 enak x potem je x zmagal
+   
+p3:
+	MOV B, [t5] 	;preveri kvadrat 5
+    CMP B, 1		;poglej če je zapisan x notr
+    JNE izenaceno		;če ni enako skoči ven
+
+	MOV B, [t4]	;poglej če je zapisan x na kvadratu 4 
+    CMP B, 1		;
+    JNE p31			;če ni poglej kvadrat 1
+    
+    MOV B, [t6]	;poglej če je zapisan x na kvadratu 6 
+   	CMP B, 1		;
+    JE Win_x	;če je tudi kvadrat 6 enak x potem je x zmagal
+    
+p31:
+	MOV B, [t1]	;poglej če je zapisan x na kvadratu 1 
+    CMP B, 1		;
+    JNE p32			;če ni poglej kvadrat 2
+    
+    MOV B, [t9]	;poglej če je zapisan x na kvadratu 6 
+   	CMP B, 1		;
+    JE Win_x	;če je tudi kvadrat 6 enak x potem je x zmagal
+
+p32:
+	MOV B, [t2]	;poglej če je zapisan x na kvadratu 2 
+    CMP B, 1		;
+    JNE p33			;če ni poglej kvadrat 3
+    
+    MOV B, [t8]	;poglej če je zapisan x na kvadratu 8 
+   	CMP B, 1		;
+    JE Win_x	;če je tudi kvadrat 8 enak x potem je x zmagal
+
+p33:
+	MOV B, [t3]	;poglej če je zapisan x na kvadratu 3 
+    CMP B, 1		;
+    JNE izenaceno		;če ni skoči vn
+    
+    MOV B, [t7]	;poglej če je zapisan x na kvadratu 7 
+   	CMP B, 1		;
+    JE Win_x	;če je tudi kvadrat 7 enak x potem je x zmagal
+	JMP izenaceno
+;----------------------------------------------------------------
+kombinacije_o:
+	MOV B, [t1] ;preveri kvadrat 1
+    CMP B, 2		;poglej če je zapisan x notr
+    JNE p5			;če ni enako poglej kvadrat 9
+    
+    MOV B, [t2]	;poglej če je zapisan x na kvadratu 2 
+    CMP B, 2		;
+    JNE p42			;če ni poglej kvadrat 4
+    
+    MOV B, [t3]	;poglej če je zapisan x na kvadratu 3 
+   	CMP B, 2		;
+    JE Win_o	;če je tudi kvadrat 3 enak x potem je x zmagal
+
+p42:
+	MOV B, [t4]	;poglej če je zapisan x na kvadratu 4
+    CMP B, 2
+    JNE p5			;če ni poglej kvadrat 9
+    
+    MOV B, [t7]	;poglej če je zapisan x na kvadratu 7
+    CMP B, 2
+    JE Win_o		;če je tudi kvadrat 7 enak x potem je x zmagal
+  
+p5:
+	MOV B, [t9] ;preveri kvadrat 9
+    CMP B, 2		;poglej če je zapisan x notr
+    JNE p6			;če ni enako poglej kvadrat 5
+    
+    MOV B, [t6]	;poglej če je zapisan x na kvadratu 6 
+    CMP B, 2		;
+    JNE p52			;če ni poglej kvadrat 8
+    
+    MOV B, [t3]	;poglej če je zapisan x na kvadratu 3 
+   	CMP B, 2		;
+    JE Win_o	;če je tudi kvadrat 3 enak x potem je x zmagal
+
+p52:
+	MOV B, [t8]	;poglej če je zapisan x na kvadratu 8
+    CMP B, 2
+    JNE p6			;če ni poglej kvadrat 5
+    
+    MOV B, [t7]	;poglej če je zapisan x na kvadratu 7
+    CMP B, 2
+    JE Win_o		;če je tudi kvadrat 7 enak x potem je x zmagal
+   
+p6:
+	MOV B, [t5] 	;preveri kvadrat 5
+    CMP B, 2		;poglej če je zapisan x notr
+    JNE izenaceno		;če ni enako skoči ven
+
+	MOV B, [t4]	;poglej če je zapisan x na kvadratu 4 
+    CMP B, 2		;
+    JNE p61			;če ni poglej kvadrat 1
+    
+    MOV B, [t6]	;poglej če je zapisan x na kvadratu 6 
+   	CMP B, 2		;
+    JE Win_o	;če je tudi kvadrat 6 enak x potem je x zmagal
+    
+p61:
+	MOV B, [t1]	;poglej če je zapisan x na kvadratu 1 
+    CMP B, 2		;
+    JNE p62			;če ni poglej kvadrat 2
+    
+    MOV B, [t9]	;poglej če je zapisan x na kvadratu 6 
+   	CMP B, 2		;
+    JE Win_o	;če je tudi kvadrat 6 enak x potem je x zmagal
+
+p62:
+	MOV B, [t2]	;poglej če je zapisan x na kvadratu 2 
+    CMP B, 2		;
+    JNE p63			;če ni poglej kvadrat 3
+    
+    MOV B, [t8]	;poglej če je zapisan x na kvadratu 8 
+   	CMP B, 2		;
+    JE Win_o	;če je tudi kvadrat 8 enak x potem je x zmagal
+
+p63:
+	MOV B, [t3]	;poglej če je zapisan x na kvadratu 3 
+    CMP B, 2		;
+    JNE izenaceno		;če ni skoči vn
+    
+    MOV B, [t7]	;poglej če je zapisan x na kvadratu 7 
+   	CMP B, 2		;
+    JE Win_o	;če je tudi kvadrat 7 enak x potem je x zmagal
+	JMP izenaceno
+
+;------------------------------------------------
+;izpiše da je zmagu x
+Win_x:
+	MOV D, strx ; damo notr string u D
+	MOV A, [display]; lokacijo x damo v A (kamor bomo kopirali)
+
+	loop1:
+	MOVB CL, [D] ; premaknemo črko v cl
+	CMPB CL, 0;
+	JE finish1;
+	MOVB [A],CL; kopiranje črk na lokacijo [A]
+	INC A; povečaš A da gre na naslednje polje kjer bo naslednja črka
+	INC D; povečaš D da gre na naslednji znak 
+	JMP loop1
+
+	finish1:
+    MOV [countzmaga], 1
+	JMP isr2
+;------------------------------------------------
+;izpiše da je zmagu o
+Win_o:
+	MOV D, stro ; damo notr string u D
+	MOV A, [display]; lokacijo x damo v A (kamor bomo kopirali)
+
+	loop2:
+	MOVB CL, [D] ; premaknemo črko v cl
+	CMPB CL, 0;
+	JE finish2;
+	MOVB [A],CL; kopiranje črk na lokacijo [A]
+	INC A; povečaš A da gre na naslednje polje kjer bo naslednja črka
+	INC D; povečaš D da gre na naslednji znak 
+	JMP loop2
+
+	finish2:
+    MOV [countzmaga], 1
+	JMP isr2
+;------------------------------------------------
+;pogleda če so vse celice polhne
+izenaceno:
+	MOV B, [t1]	;če je celica t1 = 0 pomeni da je še prazna
+    CMP B, 0
+    JE isr2		;gremo izvest barvanje prazne celice
+    
+    MOV B, [t2]
+    CMP B, 0
+    JE isr2
+    
+    MOV B, [t3]
+    CMP B, 0
+    JE isr2
+    
+    MOV B, [t4]
+    CMP B, 0
+    JE isr2
+    
+    MOV B, [t5]
+    CMP B, 0
+    JE isr2
+    
+    MOV B, [t6]
+    CMP B, 0
+    JE isr2
+    
+    MOV B, [t7]
+    CMP B, 0
+    JE isr2
+    
+    MOV B, [t8]
+    CMP B, 0
+    JE isr2
+    
+    MOV B, [t9]
+    CMP B, 0
+    JE isr2
+
+;izpiše da je izenačeno
+
+	MOV D, stri ; damo notr string u D
+	MOV A, [display]; lokacijo x damo v A (kamor bomo kopirali)
+
+	loop3:
+	MOVB CL, [D] ; premaknemo črko v cl
+	CMPB CL, 0;
+	JE finish3;
+	MOVB [A],CL; kopiranje črk na lokacijo [A]
+	INC A; povečaš A da gre na naslednje polje kjer bo naslednja črka
+	INC D; povečaš D da gre na naslednji znak 
+	JMP loop3
+
+	finish3:
+	JMP isr2    
+    
+;________________________________________________
+;RESETIRA IGRO
+reset:
+;ponastavi vse števce na originalno stanje
+MOV [st1], 0
+MOV [st2], 0
+MOV [st3], 0
+MOV [st4], 0
+MOV [st5], 0
+MOV [st6], 0
+MOV [st7], 0
+MOV [st8], 0
+MOV [st9], 0
+
+MOV [t1], 0
+MOV [t2], 0
+MOV [t3], 0
+MOV [t4], 0
+MOV [t5], 0
+MOV [t6], 0
+MOV [t7], 0
+MOV [t8], 0
+MOV [t9], 0
+
+;RESET DISPLAYA
+
+MOV D, 0 ; damo notr string u D
+MOV A, [display]; lokacijo x damo v A (kamor bomo kopirali)
+MOV C, 0
+
+;BRISANJE BESEDILA
+loop4:
+CMP C, 16; poglej če si na konci
+JE finish4; če si na koncu skoči na finish
+MOV [A],D; kopiranje črk na lokacijo [A]
+ADD A, 2; povečaš A da gre na naslednje polje
+INC C; povečaj counter da veš kje si
+JMP loop4
+ 
+
+finish4:
+MOV [countzmaga], 0; counterzmag premakni na 0 da lahko igraš naslednjo igro
+CALL resetgame ; pokliči funkcijo da ponastavi polje 
+JMP isr2; skoči na isr2 tako da igraš naprej
